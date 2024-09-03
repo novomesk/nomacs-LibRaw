@@ -556,7 +556,7 @@ _forceinline
 #else
 inline
 #endif
-void swap24(uchar *data, int len)
+void libraw_swap24(uchar *data, int len)
 {
     for (int i = 0; i < len - 2; i += 3)
     {
@@ -572,7 +572,7 @@ _forceinline
 #else
 inline
 #endif
-void swap32(uchar *data, int len)
+void libraw_swap32(uchar *data, int len)
 {
     unsigned *d = (unsigned*)data;
     for (int i = 0; i < len / 4; i++)
@@ -604,9 +604,16 @@ void LibRaw::uncompressed_fp_dng_load_raw()
 
     int bytesps = (ifd->bps + 7) >> 3; // round to upper value
 
+	if(bytesps < 1 || bytesps > 4)
+      throw LIBRAW_EXCEPTION_DECODE_RAW;
+
     tile_stripe_data_t tiles;
     tiles.init(ifd, imgdata.sizes, libraw_internal_data.unpacker_data, libraw_internal_data.unpacker_data.order,
         libraw_internal_data.internal_data.input);
+
+	INT64 allocsz = INT64(tiles.tileCnt) * INT64(tiles.tileWidth) * INT64(tiles.tileHeight) * INT64(ifd->samples) * INT64(sizeof(float));
+	if (allocsz > INT64(imgdata.rawparams.max_raw_memory_mb) * INT64(1024 * 1024))
+		throw LIBRAW_EXCEPTION_TOOBIG;
 
     if (ifd->sample_format == 3)
         float_raw_image = (float *)calloc(tiles.tileCnt * tiles.tileWidth * tiles.tileHeight *ifd->samples, sizeof(float));
@@ -639,9 +646,9 @@ void LibRaw::uncompressed_fp_dng_load_raw()
                 if (bytesps == 2 && difford)
                     libraw_swab(dst, fullrowbytes);
                 else if (bytesps == 3 && (libraw_internal_data.unpacker_data.order == 0x4949)) // II-16bit
-                    swap24(dst, fullrowbytes);
+                    libraw_swap24(dst, fullrowbytes);
                 if (bytesps == 4 && difford)
-                    swap32(dst, fullrowbytes);
+                    libraw_swap32(dst, fullrowbytes);
 
                 float lmax = expandFloats(
                     dst,

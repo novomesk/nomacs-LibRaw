@@ -230,6 +230,14 @@ int LibRaw::phase_one_correct()
       data = get4();
       save = ftell(ifp);
       fseek(ifp, meta_offset + data, SEEK_SET);
+#if 1
+	  if (ifp->eof())
+	  {
+		  // skip bad or unknown tag
+		  fseek(ifp, save, SEEK_SET);
+		  continue;
+	  }
+#endif
       if (tag == 0x0400)
       { /* Sensor defects */
         while ((len -= 8) >= 0)
@@ -344,10 +352,17 @@ int LibRaw::phase_one_correct()
       { /* Quadrant linearization */
         ushort lc[2][2][16], ref[16];
         int qr, qc;
+		bool baddiv = false;
         for (qr = 0; qr < 2; qr++)
-          for (qc = 0; qc < 2; qc++)
-            for (i = 0; i < 16; i++)
-              lc[qr][qc][i] = get4();
+			for (qc = 0; qc < 2; qc++)
+			{
+				for (i = 0; i < 16; i++)
+					lc[qr][qc][i] = get4();
+				if (lc[qr][qc][15] == 0)
+					baddiv = true;
+			}
+		if(baddiv)
+			continue;
         for (i = 0; i < 16; i++)
         {
           int v = 0;

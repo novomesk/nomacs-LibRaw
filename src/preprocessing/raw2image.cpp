@@ -43,6 +43,8 @@ void LibRaw::raw2image_start()
 
   // adjust for half mode!
   IO.shrink =
+	  !imgdata.rawdata.color4_image && !imgdata.rawdata.color3_image &&
+	  !imgdata.rawdata.float4_image && !imgdata.rawdata.float3_image &&
       P1.filters &&
       (O.half_size || ((O.threshold || O.aber[0] != 1 || O.aber[2] != 1)));
 
@@ -116,7 +118,7 @@ int LibRaw::raw2image(void)
               r = IO.fuji_width - 1 + row - (col >> 1);
               c = row + ((col + 1) >> 1);
             }
-            if (r < S.height && c < S.width)
+            if (r < S.height && c < S.width && col + int(S.left_margin) < int(S.raw_width))
               imgdata.image[((r) >> IO.shrink) * S.iwidth + ((c) >> IO.shrink)]
                            [FC(r, c)] =
                   imgdata.rawdata

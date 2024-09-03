@@ -146,6 +146,7 @@ int LibRaw::parse_tiff_ifd(int base)
         break;
       case 0x000a: /*  10, BitsPerSample */
         pana_bpp = get2();
+		pana_bpp = LIM(pana_bpp, 8, 16);
         break;
       case 0x000b: /*  11, Compression */
         imPana.Compression = get2();
@@ -168,10 +169,12 @@ int LibRaw::parse_tiff_ifd(int base)
         {
           if ((j = get2()) < 0x100)
           {
-            icWBC[j][0] = get2();
-            icWBC[j][2] = get2();
-            icWBC[j][1] = icWBC[j][3] =
-                0x100;
+			  if (j >= 0) {
+				  icWBC[j][0] = get2();
+				  icWBC[j][2] = get2();
+				  icWBC[j][1] = icWBC[j][3] =
+					  0x100;
+			  }
           }
           else // light source out of EXIF numbers range
             get4();
@@ -353,12 +356,14 @@ int LibRaw::parse_tiff_ifd(int base)
         {
           if ((j = get2()) < 0x100)
           {
+           if(j >= 0) {
             icWBC[j][0] = get2();
             icWBC[j][1] = icWBC[j][3] = get2();
             icWBC[j][2] = get2();
             if (c == 1 && i > 6 && cam_mul[0] <= 0.001f)
                 for (int q = 0; q < 4; q++)
                     cam_mul[q] = icWBC[j][q];
+	   }
           }
           else
             fseek(ifp, 6, SEEK_CUR);
@@ -648,7 +653,7 @@ int LibRaw::parse_tiff_ifd(int base)
       {
         tiff_ifd[ifd].t_filters = filters = 9;
         colors = 3;
-        FORC(36) xtrans[0][c] = fgetc(ifp) & 3;
+        FORC(36)((char *)xtrans)[c] = fgetc(ifp) & 3;
       }
       else if (len > 0)
       {
@@ -2125,8 +2130,8 @@ void LibRaw::apply_tiff()
             if(!ok)
                 continue;
         }
-		if (unsigned(tiff_ifd[i].t_width * tiff_ifd[i].t_height / (SQR(tiff_ifd[i].bps) + 1)) >
-			unsigned(thumb_width * thumb_height / (SQR(thumb_misc) + 1)))
+		if ( (INT64(tiff_ifd[i].t_width) * INT64(tiff_ifd[i].t_height) / INT64(SQR(tiff_ifd[i].bps) + 1)) >
+			 (INT64(thumb_width) * INT64(thumb_height) / INT64(SQR(thumb_misc) + 1)) ) 
 		{
 
 			thumb_width = tiff_ifd[i].t_width;

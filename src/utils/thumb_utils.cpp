@@ -31,6 +31,9 @@ void LibRaw::kodak_thumb_loader()
   if (INT64(T.theight) * INT64(T.twidth) < 64ULL)
       throw LIBRAW_EXCEPTION_IO_CORRUPT;
 
+  if(T.twidth < 16 || T.twidth > 8192 || T.theight < 16 || T.theight > 8192)
+    throw LIBRAW_EXCEPTION_IO_CORRUPT;
+
   // some kodak cameras
   ushort s_height = S.height, s_width = S.width, s_iwidth = S.iwidth,
          s_iheight = S.iheight;
@@ -52,6 +55,9 @@ void LibRaw::kodak_thumb_loader()
     S.height += S.height & 1;
     S.width += S.width & 1;
   }
+
+  S.iheight = S.height;
+  S.iwidth = S.width;
 
   imgdata.image =
       (ushort(*)[4])calloc(S.iheight * S.iwidth, sizeof(*imgdata.image));
@@ -121,26 +127,36 @@ void LibRaw::kodak_thumb_loader()
   int(*t_hist)[LIBRAW_HISTOGRAM_SIZE] =
       (int(*)[LIBRAW_HISTOGRAM_SIZE])calloc(sizeof(*t_hist), 4);
 
-  float out[3], out_cam[3][4] = {{2.81761312f, -1.98369181f, 0.166078627f, 0},
-                                 {-0.111855984f, 1.73688626f, -0.625030339f, 0},
-                                 {-0.0379119813f, -0.891268849f, 1.92918086f, 0}};
-
-  for (img = imgdata.image[0], row = 0; row < S.height; row++)
-    for (col = 0; col < S.width; col++, img += 4)
-    {
-      out[0] = out[1] = out[2] = 0;
-      int c;
-      for (c = 0; c < 3; c++)
+  if (imgdata.idata.maker_index == LIBRAW_CAMERAMAKER_Canon) // Skip color conversion for canon PPM tiffs
+  {
+    for (img = imgdata.image[0], row = 0; row < S.height; row++)
+      for (col = 0; col < S.width; col++, img += 4)
+        for (int c = 0; c < P1.colors; c++)
+          t_hist[c][img[c] >> 3]++;
+  }
+  else
+  {
+    float out[3], out_cam[3][4] = {{2.81761312f, -1.98369181f, 0.166078627f, 0},
+                                   {-0.111855984f, 1.73688626f, -0.625030339f, 0},
+                                   {-0.0379119813f, -0.891268849f, 1.92918086f, 0}};
+    
+	for (img = imgdata.image[0], row = 0; row < S.height; row++)
+      for (col = 0; col < S.width; col++, img += 4)
       {
-        out[0] += out_cam[0][c] * img[c];
-        out[1] += out_cam[1][c] * img[c];
-        out[2] += out_cam[2][c] * img[c];
+        out[0] = out[1] = out[2] = 0;
+        int c;
+        for (c = 0; c < 3; c++)
+        {
+          out[0] += out_cam[0][c] * img[c];
+          out[1] += out_cam[1][c] * img[c];
+          out[2] += out_cam[2][c] * img[c];
+        }
+        for (c = 0; c < 3; c++)
+          img[c] = CLIP((int)out[c]);
+        for (c = 0; c < P1.colors; c++)
+          t_hist[c][img[c] >> 3]++;
       }
-      for (c = 0; c < 3; c++)
-        img[c] = CLIP((int)out[c]);
-      for (c = 0; c < P1.colors; c++)
-        t_hist[c][img[c] >> 3]++;
-    }
+  }
 
   // from gamma_lut
   int(*save_hist)[LIBRAW_HISTOGRAM_SIZE] =
@@ -299,7 +315,7 @@ int LibRaw::dcraw_thumb_writer(const char *fname)
       jpeg_thumb_writer(tfp, T.thumb, T.tlength);
       break;
     case LIBRAW_THUMBNAIL_BITMAP:
-      fprintf(tfp, "P6\n%d %d\n255\n", T.twidth, T.theight);
+      fprintf(tfp, "P%d\n%d %d\n255\n", T.tcolors == 1 ? 5 : 6,  T.twidth, T.theight);
       fwrite(T.thumb, 1, T.tlength, tfp);
       break;
     default:

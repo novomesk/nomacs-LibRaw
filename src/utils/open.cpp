@@ -479,6 +479,16 @@ int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
 
 	  identify();
 
+	  // Fuji layout files: either DNG or unpacked_load_raw should be used
+	  if (libraw_internal_data.internal_output_params.fuji_width || libraw_internal_data.unpacker_data.fuji_layout)
+	  {
+        if (!imgdata.idata.dng_version && load_raw != &LibRaw::unpacked_load_raw
+			&& load_raw != &LibRaw::unpacked_load_raw_FujiDBP 
+			&& load_raw != &LibRaw::unpacked_load_raw_fuji_f700s20
+			)
+          return LIBRAW_FILE_UNSUPPORTED;
+	  }
+
 	  // promote the old single thumbnail to the thumbs_list if not present already
 	  if (imgdata.thumbs_list.thumbcount < LIBRAW_THUMBNAIL_MAXCOUNT)
 	  {
@@ -733,6 +743,12 @@ int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
 				  load_raw = &LibRaw::fuji_14bit_load_raw;
 			  else
 				  parse_fuji_compressed_header();
+		  }
+		  else if (!strcmp(imgdata.idata.normalized_model, "X-H2S") 
+			  && libraw_internal_data.internal_data.input->size() 
+			  < (libraw_internal_data.unpacker_data.data_size + libraw_internal_data.unpacker_data.data_offset))
+		  {
+            parse_fuji_compressed_header(); // try to use compressed header: X-H2S may record wrong data size
 		  }
 	  }
       // set raw_inset_crops[1] via raw_aspect
@@ -1187,9 +1203,15 @@ int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
     {
       if (C.profile)
         free(C.profile);
-      C.profile = malloc(C.profile_length);
-      ID.input->seek(ID.profile_offset, SEEK_SET);
-      ID.input->read(C.profile, C.profile_length, 1);
+	  INT64 profile_sz = MIN(INT64(C.profile_length), ID.input->size() - ID.profile_offset);
+	  if (profile_sz > 0LL && profile_sz < LIBRAW_MAX_PROFILE_SIZE_MB * 1024LL * 1024LL)
+	  {
+        C.profile = malloc(size_t(profile_sz));
+        ID.input->seek(ID.profile_offset, SEEK_SET);
+        ID.input->read(C.profile, size_t(profile_sz), 1);
+	  }
+	  else
+		  C.profile = NULL;
     }
 
     SET_PROC_FLAG(LIBRAW_PROGRESS_IDENTIFY);
