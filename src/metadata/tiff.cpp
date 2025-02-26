@@ -589,9 +589,9 @@ int LibRaw::parse_tiff_ifd(int base)
           tagtypeIs(LIBRAW_EXIFTOOLTAGTYPE_binary)) &&
           (len > 1) && (len < 5100000))
       {
-        xmpdata = (char *)malloc(xmplen = len + 1);
-        fread(xmpdata, len, 1, ifp);
-        xmpdata[len] = 0;
+        xmpdata = (char *)calloc(xmplen = len + 1,1);
+        unsigned br = fread(xmpdata,1, len, ifp);
+        xmpdata[br] = 0;
       }
       break;
     case 0x7000:
@@ -988,8 +988,8 @@ int LibRaw::parse_tiff_ifd(int base)
               (libraw_internal_data.unpacker_data.lenRAFData < 10240000))
           {
             INT64 f_save = ftell(ifp);
-            rafdata = (ushort *)malloc(
-                sizeof(ushort) * libraw_internal_data.unpacker_data.lenRAFData);
+            rafdata = (ushort *)calloc(
+                sizeof(ushort) * libraw_internal_data.unpacker_data.lenRAFData,1);
             fseek(ifp, libraw_internal_data.unpacker_data.posRAFData, SEEK_SET);
             fread(rafdata, sizeof(ushort),
                   libraw_internal_data.unpacker_data.lenRAFData, ifp);
@@ -1036,31 +1036,37 @@ int LibRaw::parse_tiff_ifd(int base)
               if ((fwb[0] == rafdata[fi]) && (fwb[1] == rafdata[fi + 1]) &&
                   (fwb[2] == rafdata[fi + 2])) // found Tungsten WB
               {
-                if (rafdata[fi - 15] !=
+                if (fi > 14 && rafdata[fi - 15] !=
                     fwb[0]) // 15 is offset of Tungsten WB from the first
                             // preset, Fine Weather WB
                   continue;
-                for (int wb_ind = 0, ofst = fi - 15; wb_ind < (int)Fuji_wb_list1.size();
-                     wb_ind++, ofst += 3)
-                {
-                  icWBC[Fuji_wb_list1[wb_ind]][1] =
-                      icWBC[Fuji_wb_list1[wb_ind]][3] = rafdata[ofst];
-                  icWBC[Fuji_wb_list1[wb_ind]][0] = rafdata[ofst + 1];
-                  icWBC[Fuji_wb_list1[wb_ind]][2] = rafdata[ofst + 2];
-                }
+				if (fi >= 15)
+				{
+					for (int wb_ind = 0, ofst = fi - 15; wb_ind < (int)Fuji_wb_list1.size();
+						wb_ind++, ofst += 3)
+					{
+						icWBC[Fuji_wb_list1[wb_ind]][1] =
+							icWBC[Fuji_wb_list1[wb_ind]][3] = rafdata[ofst];
+						icWBC[Fuji_wb_list1[wb_ind]][0] = rafdata[ofst + 1];
+						icWBC[Fuji_wb_list1[wb_ind]][2] = rafdata[ofst + 2];
+					}
+				}
 
                 if (is34)
                   fi += 24;
                 fi += 96;
                 for (fj = fi; fj < (fi + 15); fj += 3) // looking for the end of the WB table
                 {
+					if (fj > libraw_internal_data.unpacker_data.lenRAFData - 3)
+						break;
                   if (rafdata[fj] != rafdata[fi])
                   {
                     fj -= 93;
                     if (is34)
                       fj -= 9;
-// printf ("wb start in DNG: 0x%04x\n", fj*2-0x4e);
-                    for (int iCCT = 0, ofst = fj; iCCT < 31;
+//printf ("wb start in DNG: 0x%04x\n", fj*2-0x4e);
+                    for (int iCCT = 0, ofst = fj; iCCT < 31 
+						&& ofst < libraw_internal_data.unpacker_data.lenRAFData - 3;
                          iCCT++, ofst += 3)
                     {
                       icWBCCTC[iCCT][0] = FujiCCT_K[iCCT];
@@ -1430,7 +1436,7 @@ int LibRaw::parse_tiff_ifd(int base)
                 }
 
                 if (SR2SubIFDLength && (SR2SubIFDLength < 10240000) &&
-                    (buf_SR2 = (unsigned *)malloc(SR2SubIFDLength + 1024)))
+                    (buf_SR2 = (unsigned *)calloc(SR2SubIFDLength + 1024,1)))
                 { // 1024b for safety
                   fseek(ifp, SR2SubIFDOffset + base, SEEK_SET);
                   fread(buf_SR2, SR2SubIFDLength, 1, ifp);
@@ -1519,7 +1525,7 @@ int LibRaw::parse_tiff_ifd(int base)
     fseek(ifp, save, SEEK_SET);
   }
   if (sony_length && sony_length < 10240000 &&
-      (buf = (unsigned *)malloc(sony_length)))
+      (buf = (unsigned *)calloc(sony_length, 1)))
   {
     fseek(ifp, sony_offset, SEEK_SET);
     fread(buf, sony_length, 1, ifp);
