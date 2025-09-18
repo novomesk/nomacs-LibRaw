@@ -22,7 +22,7 @@
 #
 # ============================================================
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 
 PROJECT(libraw)
 
